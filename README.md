@@ -1,5 +1,9 @@
 # 🚀 Agent Autonomy Kit
 
+[![GitHub](https://img.shields.io/badge/GitHub-reflectt-blue?logo=github)](https://github.com/reflectt/agent-autonomy-kit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Part of Team Reflectt](https://img.shields.io/badge/Team-Reflectt-purple)](https://github.com/reflectt)
+
 **Stop waiting for prompts. Keep working.**
 
 Most AI agents sit idle between human messages. This kit turns your agent into a self-directed worker that continuously makes progress on meaningful tasks.
@@ -119,6 +123,18 @@ When approaching limits:
 - Write detailed handoff notes
 - Sleep until reset
 ```
+
+---
+
+## Installation
+
+### Git Clone (Recommended)
+```bash
+# Clone into your skills folder
+git clone https://github.com/reflectt/agent-autonomy-kit.git skills/agent-autonomy-kit
+```
+
+Then follow the setup steps below.
 
 ---
 
@@ -263,13 +279,22 @@ In `memory/metrics.md`:
 
 ---
 
-## Integration with Memory Kit
+## Related Kits
 
-This kit builds on the Agent Memory Kit:
+This kit works best with its companions:
+
+### [Agent Memory Kit](https://github.com/reflectt/agent-memory-kit)
+**Required foundation.** Provides the memory system this kit builds on:
 - Task progress logged to daily memory (episodic)
 - Procedures for common tasks (procedural)
 - Learnings added to MEMORY.md (semantic)
 - Failures tracked in feedback.md (feedback loops)
+
+### [Agent Team Kit](https://github.com/reflectt/agent-team-kit)
+**For multi-agent setups.** Coordinates autonomous agents working together:
+- Role-based work distribution
+- Self-service task queues
+- Team communication patterns
 
 ---
 
