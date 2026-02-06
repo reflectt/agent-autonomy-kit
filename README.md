@@ -30,9 +30,11 @@ A proactive work system:
 
 ## Core Concepts
 
-### 1. The Task Queue
+### 1. The Task Queue (Queue-First Enforcement)
 
 Instead of waiting for prompts, agents pull from a persistent task queue.
+
+**CRITICAL:** The Autonomy Kit enforces queue-first execution. If HIGH or CRITICAL priority tasks exist in the queue, the agent **CANNOT** skip them to work on other things or say HEARTBEAT_OK.
 
 **Location:** `tasks/QUEUE.md` (or GitHub Projects)
 
@@ -62,7 +64,94 @@ Instead of waiting for prompts, agents pull from a persistent task queue.
 - Move to Done when complete
 - Add new tasks as you discover them
 
-### 2. Proactive Heartbeat
+**Priority Levels:**
+- `[CRITICAL]` or `🔥 CRITICAL` — Drop everything, fix now
+- `[HIGH]` or `🔴 HIGH` — Must be handled before other work
+- `[MEDIUM]` — Treated as HIGH by default (safety first)
+- `[LOW]` or `🟡 LOW` — Can be deferred
+
+### 2. Queue Checker Script (Enforcement)
+
+The queue checker script **enforces** queue-first execution programmatically.
+
+**Location:** `skills/agent-autonomy-kit/check-queue.js`
+
+**Usage:**
+```bash
+node skills/agent-autonomy-kit/check-queue.js
+```
+
+**How it works:**
+1. Scans `tasks/QUEUE.md` for all tasks in the "Ready" section
+2. Detects priority level (CRITICAL, HIGH, MEDIUM, LOW)
+3. Returns exit code 1 if HIGH/CRITICAL tasks exist
+4. Returns exit code 0 only if queue is empty or all tasks are LOW priority
+
+**Exit Codes:**
+- `0` = Safe to continue with other work (no urgent tasks)
+- `1` = MUST spawn agent for HIGH/CRITICAL task (cannot skip)
+
+**Integration in HEARTBEAT.md:**
+```markdown
+## 1. Quick Checks
+
+- [ ] Human messages waiting? → Handle immediately
+- [ ] Run queue checker (MANDATORY):
+  ```bash
+  node skills/agent-autonomy-kit/check-queue.js
+  ```
+  - Exit code 1: MUST spawn agent for top task
+  - Exit code 0: Safe to proceed
+- [ ] If queue is clear, proceed to work mode
+```
+
+**Example Output:**
+
+When HIGH priority tasks exist:
+```
+=== Queue Priority Check ===
+
+🔴 HIGH priority tasks: 3
+   • Fix critical bug in authentication
+   • Deploy hotfix to production
+   • Update security documentation
+
+❌ CANNOT SKIP QUEUE
+You must spawn an agent for HIGH/CRITICAL tasks before doing other work.
+
+Top priority task:
+Fix critical bug in authentication
+
+[Exit code: 1]
+```
+
+When queue is clear:
+```
+=== Queue Priority Check ===
+
+🟢 LOW priority tasks: 2
+
+✅ Safe to continue
+No HIGH/CRITICAL tasks in queue. You can proceed with other work.
+
+[Exit code: 0]
+```
+
+**Why this matters:**
+
+Before this script, agents would:
+- Say "HEARTBEAT_OK" and skip important work
+- Work on pet projects while HIGH priority tasks sat in the queue
+- Require human interpretation of "what's urgent"
+
+After this script:
+- **Programmatic enforcement** — no agent discretion, no exceptions
+- **Impossible to skip** — exit code 1 blocks heartbeat completion
+- **Clear instructions** — script shows exactly which task to spawn for
+
+**📖 See [QUEUE-ENFORCEMENT-EXAMPLES.md](./QUEUE-ENFORCEMENT-EXAMPLES.md) for detailed usage examples and workflow patterns.**
+
+### 3. Proactive Heartbeat
 
 Transform heartbeat from "check for alerts" to "do meaningful work."
 
@@ -73,11 +162,16 @@ Transform heartbeat from "check for alerts" to "do meaningful work."
 
 ## 1. Check for urgent items (30 seconds)
 - Unread messages from human?
+- **Run queue checker (MANDATORY):**
+  ```bash
+  node skills/agent-autonomy-kit/check-queue.js
+  ```
+  If exit code 1: spawn agent for HIGH/Critical task (no exceptions)
 - Blocked tasks needing escalation?
 - System health issues?
 
 If urgent: handle immediately.
-If not: continue to work mode.
+If queue checker passed (exit 0): continue to work mode.
 
 ## 2. Work Mode (use remaining time)
 
@@ -163,13 +257,19 @@ EOF
 
 ### 2. Update HEARTBEAT.md
 
-Replace passive checking with proactive work:
+Replace passive checking with **enforced** queue-first work:
 
 ```markdown
 # Heartbeat Routine
 
 ## Quick Checks (if urgent, handle immediately)
 - [ ] Human messages waiting?
+- [ ] **Run queue checker (MANDATORY):**
+  ```bash
+  node skills/agent-autonomy-kit/check-queue.js
+  ```
+  Exit code 1 → Spawn agent for HIGH task (cannot skip)
+  Exit code 0 → Safe to continue
 - [ ] Critical blockers?
 
 ## Work Mode
@@ -308,6 +408,22 @@ Now the team works continuously, coordinating via Discord, pulling from a shared
 
 ## Cron Jobs for Autonomy
 
+Set up automated reporting and work triggers.
+
+### Avoid duplicate work when subagents are already running (watchdog)
+
+Cron jobs often run on a fixed schedule; if a subagent finished *recently*, its session can look “fresh” even though it’s done.
+
+Use the watchdog below to distinguish **actually running** subagents from **recently completed** ones:
+
+```bash
+node skills/agent-autonomy-kit/check-active-subagents.js
+# exit 0 => no active subagents
+# exit 1 => active subagent(s) detected
+```
+
+Suggested pattern for cron message prompts: **run the watchdog first; if it reports active subagents, do nothing and exit.**
+
 Set up automated reporting and work triggers:
 
 ### Daily Progress Report (10 PM)
@@ -342,6 +458,33 @@ openclaw cron add \
 ```
 
 These run automatically — no human prompt needed.
+
+---
+
+## Queue Enforcement Summary
+
+**The Problem:** Agents skipped HIGH priority tasks and said HEARTBEAT_OK.
+
+**The Solution:** Programmatic enforcement via `check-queue.js`.
+
+**How It Works:**
+1. Every heartbeat runs: `node skills/agent-autonomy-kit/check-queue.js`
+2. Script scans `tasks/QUEUE.md` for HIGH/CRITICAL tasks in "Ready" section
+3. Exit code 1 = MUST spawn agent (impossible to skip)
+4. Exit code 0 = Safe to continue with other work
+
+**Success Metric:** After this fix, if there's a HIGH priority task in QUEUE.md, the agent MUST spawn work for it. No exceptions.
+
+**Files:**
+- `check-queue.js` — The enforcer script
+- `test-queue-checker.sh` — Automated tests (all passing ✅)
+- `QUEUE-ENFORCEMENT-EXAMPLES.md` — Real-world usage examples
+- `templates/HEARTBEAT.md` — Updated template with enforcement
+
+**Run Tests:**
+```bash
+bash skills/agent-autonomy-kit/test-queue-checker.sh
+```
 
 ---
 
